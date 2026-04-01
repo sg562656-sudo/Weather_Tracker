@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkyCast • Your Weather Friend</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #4a6cf7;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      margin: 0;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      color: white;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    h1 {
+      font-size: 3rem;
+      margin: 0;
+      background: linear-gradient(90deg, #60a5fa, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      gap: 25px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .search-card { width: 380px; }
+    .weather-card { flex: 1; min-width: 420px; }
+
+    input {
+      width: 100%;
+      padding: 16px 20px;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    input:focus {
+      background: rgba(255,255,255,0.25);
+    }
+    button {
+      width: 100%;
+      padding: 16px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 16px;
+      background: linear-gradient(90deg, #4a6cf7, #60a5fa);
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      transform: translateY(-3px);
+    }
+
+    .history-item {
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.08);
+      margin-bottom: 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .history-item:hover {
+      background: rgba(255,255,255,0.2);
+    }
+
+    .city-name { font-size: 2.2rem; font-weight: 700; margin: 10px 0; }
+    .temp { font-size: 4.5rem; font-weight: 300; margin: 10px 0; }
+    .condition { font-size: 1.4rem; margin-bottom: 20px; }
+
+    .details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      margin-top: 25px;
+    }
+    .detail-item {
+      background: rgba(255,255,255,0.08);
+      padding: 14px;
+      border-radius: 14px;
+      text-align: center;
+    }
+
+    .forecast-container {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+    }
+    .forecast-day {
+      background: rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 16px 12px;
+      text-align: center;
+      min-width: 110px;
+    }
+
+    .console {
+      margin: 30px auto;
+      max-width: 1100px;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 16px;
+      padding: 18px;
+      font-family: monospace;
+      color: #0f0;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>SkyCast</h1>
+    <p>Your friendly weather companion ☀️🌧️</p>
+  </div>
+
+  <div class="container">
+    <div class="card search-card">
+      <h3><i class="fas fa-search"></i> How's the weather?</h3>
+      <input type="text" id="cityInput" placeholder="Delhi,IN or London,GB or New York">
+      <button onclick="getWeather()">Get Weather ✨</button>
+
+      <div class="history" style="margin-top:20px">
+        <h4>🌟 Recent Searches</h4>
+        <div id="history"></div>
+      </div>
+    </div>
+
+    <div class="card weather-card">
+      <div id="weather">
+        <div style="text-align:center; padding:60px 20px; opacity:0.8;">
+          <h2>🌤️ Ready when you are!</h2>
+          <p>Search any city above</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="console" id="console"></div>
+
+  <script>
+    const weatherBox = document.getElementById("weather");
+    const consoleBox = document.getElementById("console");
+    const historyBox = document.getElementById("history");
+
+    function log(msg) {
+      consoleBox.innerHTML += `<span style="color:#aaa">${new Date().toLocaleTimeString()}</span> ${msg}<br>`;
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function saveHistory(city) {
+      let cities = JSON.parse(localStorage.getItem("skyCities")) || [];
+      if (!cities.includes(city)) {
+        cities.unshift(city);
+        if (cities.length > 8) cities.pop();
+        localStorage.setItem("skyCities", JSON.stringify(cities));
+      }
+      loadHistory();
+    }
+
+    function loadHistory() {
+      let cities = JSON.parse(localStorage.getItem("skyCities")) || [];
+      historyBox.innerHTML = "";
+      cities.forEach(city => {
+        let div = document.createElement("div");
+        div.className = "history-item";
+        div.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${city}`;
+        div.onclick = () => getWeather(city);
+        historyBox.appendChild(div);
+      });
+    }
+
+    async function getWeather(cityName = null) {
+      consoleBox.innerHTML = "";
+      let city = cityName || document.getElementById("cityInput").value.trim();
+
+      if (!city) {
+        weatherBox.innerHTML = `<p style="color:#ff6b6b; text-align:center">Please enter a city name</p>`;
+        return;
+      }
+
+      log("🌍 Starting weather check...");
+      weatherBox.innerHTML = `<p style="text-align:center">Fetching weather for <strong>${city}</strong>...</p>`;
+
+      try {
+        // First get coordinates using Open-Meteo Geocoding
+        log("🔍 Finding location coordinates...");
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
+        const geoData = await geoRes.json();
+
+        if (!geoData.results || geoData.results.length === 0) {
+          weatherBox.innerHTML = `<p style="color:#ff9800; text-align:center">😕 City not found.<br>Try: Delhi,IN or Mumbai,IN</p>`;
+          log("❌ City not found");
+          return;
+        }
+
+        const { latitude, longitude, name, country } = geoData.results[0];
+        log(`📍 Found: ${name}, ${country}`);
+
+        // Now get current weather + 7-day forecast
+        log("📡 Fetching weather data...");
+        const weatherRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`
+        );
+        const data = await weatherRes.json();
+
+        const current = data.current;
+        const daily = data.daily;
+
+        const weatherHTML = `
+          <div style="text-align:center">
+            <div style="font-size:4rem; margin-bottom:10px">${getWeatherEmoji(current.weather_code)}</div>
+            <div class="city-name">${name}, ${country}</div>
+            <div class="temp">${Math.round(current.temperature_2m)}°C</div>
+            <div class="condition">${getConditionName(current.weather_code)}</div>
+
+            <div class="details">
+              <div class="detail-item">
+                <strong>Humidity</strong><br>${current.relative_humidity_2m}%
+              </div>
+              <div class="detail-item">
+                <strong>Wind</strong><br>${current.wind_speed_10m} km/h
+              </div>
+            </div>
+
+            <div class="forecast" style="margin-top:30px">
+              <h3>🌤️ Next 7 Days</h3>
+              <div class="forecast-container" id="forecastContainer"></div>
+            </div>
+          </div>
+        `;
+
+        weatherBox.innerHTML = weatherHTML;
+        renderForecast(daily);
+
+        saveHistory(city);
+        log("✅ Weather loaded successfully!");
+
+      } catch (error) {
+        weatherBox.innerHTML = `<p style="color:#ff6b6b; text-align:center">⚠️ Something went wrong. Please try again.</p>`;
+        log(`❌ Error: ${error.message}`);
+      }
+    }
+
+    function getWeatherEmoji(code) {
+      const map = {
+        0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️",
+        45: "🌫️", 48: "🌫️",
+        51: "🌦️", 53: "🌦️", 55: "🌧️",
+        61: "🌧️", 63: "🌧️", 65: "🌧️",
+        71: "❄️", 73: "❄️", 75: "❄️",
+        80: "🌦️", 81: "🌧️", 82: "⛈️",
+        95: "⛈️", 96: "⛈️", 99: "⛈️"
+      };
+      return map[code] || "🌥️";
+    }
+
+    function getConditionName(code) {
+      const names = {
+        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+        45: "Fog", 48: "Depositing rime fog",
+        51: "Light drizzle", 61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+        71: "Slight snow", 80: "Rain showers", 95: "Thunderstorm"
+      };
+      return names[code] || "Unknown";
+    }
+
+    function renderForecast(daily) {
+      const container = document.getElementById("forecastContainer");
+      container.innerHTML = "";
+
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(daily.time[i]);
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+
+        const div = document.createElement("div");
+        div.className = "forecast-day";
+        div.innerHTML = `
+          <div style="font-weight:600">${dayName}</div>
+          <div style="font-size:2.2rem; margin:10px 0">${getWeatherEmoji(daily.weather_code[i])}</div>
+          <div style="font-size:1.3rem">${Math.round(daily.temperature_2m_max[i])}° / ${Math.round(daily.temperature_2m_min[i])}°</div>
+        `;
+        container.appendChild(div);
+      }
+    }
+
+    // Load history on start
+    loadHistory();
+
+    // Enter key support
+    document.getElementById("cityInput").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") getWeather();
+    });
+  </script>
+</body>
+</html>
